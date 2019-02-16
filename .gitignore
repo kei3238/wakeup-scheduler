@@ -1,0 +1,4 @@
+node_modules
+
+# Hue Bridge user config file.
+setting.json
