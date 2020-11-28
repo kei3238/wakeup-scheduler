@@ -43,7 +43,7 @@ module.exports = class ApiScheduler {
    }
  
    checkSettingValue (settingStr) {
-     if (settingStr.match(/[SYSTEM MESSAGE]/)) {
+     if (settingStr.match(/^[SYSTEM MESSAGE]/)) {
          return {valid: false, result: 'SYSTEM_MESSAGE'};
      }
      else if (settingStr === 'OFF' | 'Off' | 'off' | 'オフ') {

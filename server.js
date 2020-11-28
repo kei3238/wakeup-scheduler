@@ -12,24 +12,25 @@ class WakeUpRoutine extends ApiScheduler {
     // Hue API settings.
     this.hueBridgeIp = setting.hue.bridgeIp;
     this.username = setting.hue.username;
-    this.groupId = setting.hue.groupId | 1;
-    this.brightness = setting.hue.brightness | 254;
-    this.msecTransTimeHue = setting.hue.millisecTransitiontime | 400;
+    this.groupId = setting.hue.groupId || 1;
+    this.brightness = setting.hue.brightness || 254;
+    this.msecTransTimeHueBefore = setting.hue.millisecTransitiontimeBefore;
+    this.msecTransTimeHueAfter  = setting.hue.millisecTransitiontimeAfter;
 
     // Slack channel API settings.
     this.slackApiUrl = "https://slack.com/api/channels.history";
     this.slackApiToken = setting.slack.apiToken;
     this.slackChannelId = setting.slack.channelId;
-    this.slackPostCount = setting.slack.postCount | 20;
+    this.slackPostCount = setting.slack.postCount || 20;
 
     // Nature remo API settings.
     this.remoApiToken = setting.remo.apiToken;
     this.remoDeviceId = setting.remo.deviceId;
     this.delonghiOnSignalId = setting.remo.delonghiOnSignalId;
     this.coolerOnSignalId = setting.remo.coolerOnSignalId;
-    this.msecTransTimeAC = setting.remo.millisecTransitiontime | 1800000;
-    this.lowTempThreshold = setting.remo.lowTempThreshold | 20;
-    this.highTempThreshold = setting.remo.highTempThreshold | 27;
+    this.msecTransTimeAC = setting.remo.millisecTransitiontime;
+    this.lowTempThreshold = setting.remo.lowTempThreshold || 20;
+    this.highTempThreshold = setting.remo.highTempThreshold || 27;
 
     // Initialize.
     this.latestPostTimestamp = null;
@@ -37,7 +38,7 @@ class WakeUpRoutine extends ApiScheduler {
   }
 
   start () {
-
+    
     // Register API schedulers.
     this.jobInvokeHue = 
       schedule.scheduleJob('0 0 0 1 1 0', function() {
@@ -46,7 +47,8 @@ class WakeUpRoutine extends ApiScheduler {
 
     this.jobInvokeAC = 
       schedule.scheduleJob('0 0 0 1 1 0', function() {
-      this.turnOnDelonghi()
+      // this.turnOnDelonghi()
+      this.turnOnAirConditioner()
     }.bind(this));
 
     // Cancel.
@@ -61,7 +63,7 @@ class WakeUpRoutine extends ApiScheduler {
         .then(function (response) {
           var messages = response.data.messages;
           for (var message of messages) {
-            if (this.checkSettingValue(message.text).valid) {
+            if (this.checkSettingValue(message.text.trim()).valid) {
               var latestPost = message;
               break;
             }
@@ -74,7 +76,7 @@ class WakeUpRoutine extends ApiScheduler {
           if (this.latestPostTimestamp !== latestPost.ts) {
 
             // Update.
-            this.latestSetting = latestPost.text;
+            this.latestSetting = latestPost.text.trim();
             this.latestPostTimestamp = latestPost.ts;
 
             // Check timer setting.
@@ -90,7 +92,7 @@ class WakeUpRoutine extends ApiScheduler {
                 'Hue',
                 this.jobInvokeHue,
                 targetTimeHue,
-                this.msecTransTimeHue,
+                this.msecTransTimeHueBefore,
               );
 
               // Set De'Longhi timer.
@@ -136,7 +138,7 @@ class WakeUpRoutine extends ApiScheduler {
     axios
       .put(hueApi, {
         "on": true,
-        "transitiontime":  Math.round(this.msecTransTimeHue/100),
+        "transitiontime": Math.round((this.msecTransTimeHueBefore+this.msecTransTimeHueAfter)/100),
         "bri": this.brightness
       })
       .then(function (response) {
@@ -150,12 +152,18 @@ class WakeUpRoutine extends ApiScheduler {
   turnOnAirConditioner () {
     this.getRoomTemperature(this.remoDeviceId)
       .then(roomTemp => {
-        console.log(roomTemp)
+        console.info(
+          `[INFO] Current room temparature is ${roomTemp} C on ${new Date()}.`
+        )
         if (roomTemp < this.lowTempThreshold) {
-          this.turnOnDelonghi()
+          // this.turnOnDelonghi()
+          this.turnOnHeater()
         }
         else if (roomTemp > this.highTempThreshold) {
           this.turnOnCooler()
+        }
+        else {
+          console.info('[INFO] Air condition is good, and no equipment will be turned on.')
         }
       })
       .catch(e => {console.log(e)})
@@ -191,12 +199,43 @@ class WakeUpRoutine extends ApiScheduler {
     axios({
       method  : 'POST',
       url     : `https://api.nature.global/1/appliances/${this.coolerOnSignalId}/aircon_settings`,
-      data    : { button: null },
+      data    : {
+        button: null,
+        operation_mode: 'cool', // 'auto', 'cool'
+        temperature: 26,
+        air_volume: 1
+      },
       headers : headers,
     })
       .then(function (response) {
         console.info(
           `[INFO] Nature Remo API for the cooler has been invoked at ${new Date()}.`
+        )
+      })
+      .catch(e => {console.log(e)})
+  }
+
+  turnOnHeater () {
+    var headers = {
+      'Authorization': `Bearer ${this.remoApiToken}`,
+      'accept': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded'
+    };
+
+    axios({
+      method  : 'POST',
+      url     : `https://api.nature.global/1/appliances/${this.coolerOnSignalId}/aircon_settings`,
+      data    : {
+        button: null,
+        operation_mode: 'warm', // 'auto', 'cool'
+        temperature: 23,
+        air_volume: 1
+      },
+      headers : headers,
+    })
+      .then(function (response) {
+        console.info(
+          `[INFO] Nature Remo API for the heater has been invoked at ${new Date()}.`
         )
       })
       .catch(e => {console.log(e)})
