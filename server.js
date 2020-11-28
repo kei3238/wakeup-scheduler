@@ -286,5 +286,3 @@ class WakeUpRoutine extends ApiScheduler {
 
 var scheduler = new WakeUpRoutine(setting)
 scheduler.start()
-
-scheduler.turnOnHueTargetGroup()
