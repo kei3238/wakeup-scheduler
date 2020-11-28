@@ -10,8 +10,8 @@ class WakeUpRoutine extends ApiScheduler {
     super();
     
     // Hue API settings.
-    this.hueBridgeIp = setting.hue.bridgeIp;
     this.username = setting.hue.username;
+    this.HueAccessToken = setting.hue.accessToken;
     this.groupId = setting.hue.groupId || 1;
     this.brightness = setting.hue.brightness || 254;
     this.msecTransTimeHueBefore = setting.hue.millisecTransitiontimeBefore;
@@ -133,14 +133,22 @@ class WakeUpRoutine extends ApiScheduler {
   turnOnHueTargetGroup () {
 
     // Hue API.
-    var hueApi = `http://${this.hueBridgeIp}/api/${this.username}/groups/${this.groupId}/action`
+    var hueApi = `https://api.meethue.com/bridge/${this.username}/groups/${this.groupId}/action`
+    var headers = {
+      'Authorization': `Bearer ${this.HueAccessToken}`,
+      'Content-Type': 'application/json'
+    };
 
-    axios
-      .put(hueApi, {
-        "on": true,
-        "transitiontime": Math.round((this.msecTransTimeHueBefore+this.msecTransTimeHueAfter)/100),
-        "bri": this.brightness
-      })
+    axios({
+      method  : 'PUT',
+      url     : hueApi,
+      data    : {
+        on: true,
+        transitiontime: Math.round((this.msecTransTimeHueBefore+this.msecTransTimeHueAfter)/100),
+        bri: this.brightness
+      },
+      headers : headers,
+    })
       .then(function (response) {
         console.info(
           `[INFO] Hue light API has been invoked at ${new Date()}.`
@@ -278,3 +286,5 @@ class WakeUpRoutine extends ApiScheduler {
 
 var scheduler = new WakeUpRoutine(setting)
 scheduler.start()
+
+scheduler.turnOnHueTargetGroup()
