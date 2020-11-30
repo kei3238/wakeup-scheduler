@@ -1,40 +1,62 @@
-var axios = require('axios');
-var schedule = require('node-schedule');
-var ApiScheduler = require('./api-scheduler');
-
-// Read settings.
-const setting = require('./setting.json');
+var axios = require('axios')
+var fs = require('fs')
+var schedule = require('node-schedule')
+var ApiScheduler = require('./api-scheduler')
 
 class WakeUpRoutine extends ApiScheduler {
-  constructor(setting) {
-    super();
-    
-    // Hue API settings.
-    this.username = setting.hue.username;
-    this.HueAccessToken = setting.hue.accessToken;
-    this.groupId = setting.hue.groupId || 1;
-    this.brightness = setting.hue.brightness || 254;
-    this.msecTransTimeHueBefore = setting.hue.millisecTransitiontimeBefore;
-    this.msecTransTimeHueAfter  = setting.hue.millisecTransitiontimeAfter;
+  constructor() {
+    super()
 
-    // Slack channel API settings.
-    this.slackApiUrl = "https://slack.com/api/channels.history";
-    this.slackApiToken = setting.slack.apiToken;
-    this.slackChannelId = setting.slack.channelId;
-    this.slackPostCount = setting.slack.postCount || 20;
-
-    // Nature remo API settings.
-    this.remoApiToken = setting.remo.apiToken;
-    this.remoDeviceId = setting.remo.deviceId;
-    this.delonghiOnSignalId = setting.remo.delonghiOnSignalId;
-    this.coolerOnSignalId = setting.remo.coolerOnSignalId;
-    this.msecTransTimeAC = setting.remo.millisecTransitiontime;
-    this.lowTempThreshold = setting.remo.lowTempThreshold || 20;
-    this.highTempThreshold = setting.remo.highTempThreshold || 27;
+    // Read settings.
+    this.readSlackSettings()
+    this.readHueSettings()
+    this.readAcSettings()
 
     // Initialize.
     this.latestPostTimestamp = null;
     this.latestPost = null;
+  }
+
+  readJsonFile (filepath) {
+    return JSON.parse(fs.readFileSync(filepath, 'utf8'))
+  }
+
+  readSlackSettings () {
+    // Read settings.
+    var setting = this.readJsonFile('./setting.json')
+
+    // Slack channel API settings.
+    this.slackApiUrl = "https://slack.com/api/channels.history"
+    this.slackApiToken = setting.slack.apiToken
+    this.slackChannelId = setting.slack.channelId
+    this.slackPostCount = setting.slack.postCount || 20
+  }
+
+  readHueSettings () {
+    // Read settings.
+    var setting = this.readJsonFile('./setting.json')
+    
+    // Hue API settings.
+    this.username = setting.hue.username
+    this.hueAccessToken = setting.hue.accessToken
+    this.groupId = setting.hue.groupId || 1
+    this.brightness = setting.hue.brightness || 254
+    this.msecTransTimeHueBefore = setting.hue.millisecTransitiontimeBefore
+    this.msecTransTimeHueAfter  = setting.hue.millisecTransitiontimeAfter
+  }
+
+  readAcSettings () {
+    // Read settings.
+    var setting = this.readJsonFile('./setting.json')
+
+    // Nature remo API settings.
+    this.remoApiToken = setting.remo.apiToken
+    this.remoDeviceId = setting.remo.deviceId
+    this.delonghiOnSignalId = setting.remo.delonghiOnSignalId
+    this.coolerOnSignalId = setting.remo.coolerOnSignalId
+    this.msecTransTimeAC = setting.remo.millisecTransitiontime
+    this.lowTempThreshold = setting.remo.lowTempThreshold || 20
+    this.highTempThreshold = setting.remo.highTempThreshold || 27
   }
 
   start () {
@@ -131,11 +153,14 @@ class WakeUpRoutine extends ApiScheduler {
   }
  
   turnOnHueTargetGroup () {
-
+    
+    // Update Hue settings including the token.
+    this.readHueSettings()
+    
     // Hue API.
     var hueApi = `https://api.meethue.com/bridge/${this.username}/groups/${this.groupId}/action`
     var headers = {
-      'Authorization': `Bearer ${this.HueAccessToken}`,
+      'Authorization': `Bearer ${this.hueAccessToken}`,
       'Content-Type': 'application/json'
     };
 
@@ -158,6 +183,10 @@ class WakeUpRoutine extends ApiScheduler {
   }
 
   turnOnAirConditioner () {
+
+    // Update Hue settings.
+    this.readAcSettings()
+
     this.getRoomTemperature(this.remoDeviceId)
       .then(roomTemp => {
         console.info(
@@ -284,5 +313,5 @@ class WakeUpRoutine extends ApiScheduler {
   }
 }
 
-var scheduler = new WakeUpRoutine(setting)
+var scheduler = new WakeUpRoutine()
 scheduler.start()
